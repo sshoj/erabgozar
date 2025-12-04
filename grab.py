@@ -18,14 +18,16 @@ st.markdown("""
         direction: rtl;
         text-align: right;
         font-family: 'Tahoma', 'Arial', sans-serif;
-        font-size: 1.4em;
+        font-size: 1.6em;
         line-height: 2.5em;
         white-space: pre-wrap; /* Preserve newlines */
-        background-color: #fdfdfd;
-        padding: 15px;
+        background-color: #fefae0; /* Parchment color */
+        color: #2c3e50; /* Dark text for contrast */
+        padding: 25px;
         border-radius: 10px;
-        border: 1px solid #e0e0e0;
+        border: 2px solid #d4a373; /* Distinct border */
         margin-bottom: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     .stTextArea textarea {
         direction: rtl;
@@ -121,9 +123,13 @@ else:
 def generate_diacritics(text):
     """Calls Gemini to add diacritics to Persian text."""
     prompt = f"""
-    You are an expert in Persian literature and grammar. 
-    Please add the correct diacritics (اعراب) to the following Persian lyrics to clarify pronunciation.
-    Output ONLY the processed Persian text with diacritics. Do not add explanations.
+    You are an expert in Persian literature and grammar.
+    Task: Add full and comprehensive diacritics (Harakat/Erab: Fatha, Kasra, Damma, Sokoun, Tashdid) to the following Persian text to ensure exact pronunciation.
+    
+    Strict Rules:
+    1. Every single word MUST have diacritics.
+    2. Output ONLY the processed Persian text.
+    3. Do not add translations or explanations.
     
     Input Text:
     {text}
@@ -186,6 +192,7 @@ with col1:
     
     if st.session_state.lyrics_processed:
         # 1. Show the full structured poem first (Readable View)
+        # Using the updated css class for better visibility
         st.markdown(f"""
         <div class='rtl-text'>{st.session_state.lyrics_processed}</div>
         """, unsafe_allow_html=True)
