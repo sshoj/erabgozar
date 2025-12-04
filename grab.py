@@ -18,8 +18,14 @@ st.markdown("""
         direction: rtl;
         text-align: right;
         font-family: 'Tahoma', 'Arial', sans-serif;
-        font-size: 1.3em;
+        font-size: 1.4em;
         line-height: 2.5em;
+        white-space: pre-wrap; /* Preserve newlines */
+        background-color: #fdfdfd;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #e0e0e0;
+        margin-bottom: 20px;
     }
     .stTextArea textarea {
         direction: rtl;
@@ -47,13 +53,13 @@ st.markdown("""
         display: flex;
         flex-wrap: wrap;
         gap: 0.5rem;
-        justify-content: flex-start; /* Align to right for RTL context if direction is rtl */
+        justify-content: flex-start;
     }
     
     /* Adjust pill text */
     div[data-testid="stPills"] button {
         font-family: 'Tahoma', 'Arial', sans-serif !important;
-        font-size: 1.1em !important;
+        font-size: 1.0em !important;
         padding: 0.25rem 0.75rem !important;
     }
 </style>
@@ -86,8 +92,8 @@ with st.sidebar:
     **How to use:**
     1. Enter Persian lyrics.
     2. Click 'Add Diacritics'.
-    3. **Click on any word chip** to select it.
-    4. Chat with Gemini about the selected word.
+    3. Read the generated poem.
+    4. **Select a word** from the chips below to discuss or correct it.
     """)
     
     # Updated model list to include Gemini 3.0 Preview
@@ -174,18 +180,25 @@ with col1:
     st.divider()
 
     # Processed Output & Interaction
-    st.subheader("📖 Clickable Results")
+    st.subheader("📖 Result (اعراب گذاری)")
     
     selected_word = ""
     
     if st.session_state.lyrics_processed:
+        # 1. Show the full structured poem first (Readable View)
+        st.markdown(f"""
+        <div class='rtl-text'>{st.session_state.lyrics_processed}</div>
+        """, unsafe_allow_html=True)
+        
+        st.caption("👇 Select a word below to discuss or correct it:")
+        
         words = st.session_state.lyrics_processed.split()
         
+        # 2. Show pills for selection (Interactive View)
         # Use st.pills for selection to avoid page reload issues
-        # We use indices as options to handle duplicate words
         if hasattr(st, "pills"):
             selected_idx = st.pills(
-                "Select a word to discuss:",
+                "Word Selection",
                 options=range(len(words)),
                 format_func=lambda i: words[i],
                 selection_mode="single",
