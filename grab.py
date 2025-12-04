@@ -10,6 +10,18 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- Handling Query Parameters for Click Events ---
+# Check for selection in URL (this simulates the click-to-select behavior)
+query_params = st.query_params
+selected_idx_param = query_params.get("selected_index", None)
+
+# Update session state based on URL click
+if selected_idx_param is not None:
+    try:
+        st.session_state.selected_word_index = int(selected_idx_param)
+    except ValueError:
+        st.session_state.selected_word_index = None
+
 # --- Custom CSS for RTL and Styling ---
 st.markdown("""
 <style>
@@ -18,8 +30,8 @@ st.markdown("""
         direction: rtl;
         text-align: right;
         font-family: 'Tahoma', 'Arial', sans-serif;
-        font-size: 1.2em;
-        line-height: 2em;
+        font-size: 1.3em;
+        line-height: 2.5em;
     }
     .stTextArea textarea {
         direction: rtl;
@@ -40,13 +52,32 @@ st.markdown("""
         background-color: #e8f4f8;
         border-left: 5px solid #00a8e8;
     }
-    /* Highlight selected word in display */
-    .highlighted-word {
-        background-color: #ffe4b5;
-        padding: 2px 5px;
-        border-radius: 4px;
+    
+    /* Clickable Word Styling */
+    a.word-link {
+        text-decoration: none;
+        color: #2c3e50;
+        padding: 4px 8px;
+        border-radius: 6px;
+        margin: 0 2px;
+        transition: all 0.2s ease;
+        border: 1px solid transparent;
+        display: inline-block;
+    }
+    a.word-link:hover {
+        background-color: #e0e0e0;
+        border-color: #bdc3c7;
+        color: #000;
+        text-decoration: none !important;
+    }
+    
+    /* Active/Selected Word Styling */
+    a.word-link-active {
+        background-color: #ffe4b5 !important;
+        border-color: #d35400 !important;
+        color: #d35400 !important;
         font-weight: bold;
-        color: #d35400;
+        transform: scale(1.1);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -80,11 +111,12 @@ with st.sidebar:
     **How to use:**
     1. Enter Persian lyrics.
     2. Click 'Add Diacritics'.
-    3. Use the 'Word Inspector' to discuss specific words with Gemini.
+    3. **Click on any word** in the result to select it.
+    4. Chat with Gemini about the selected word.
     """)
     
     # Updated model list to prioritize Pro and include experimental versions
-    model_choice = st.selectbox("Model", ["gemini-1.5-pro", "gemini-2.0-flash-exp", "gemini-1.5-flash"])
+    model_choice = st.selectbox("Model", ["gemini-2.5-flash-preview-09-2025", "gemini-1.5-pro", "gemini-2.0-flash-exp", "gemini-1.5-flash"])
     
     if st.button("Clear Conversation"):
         st.session_state.messages = []
@@ -140,68 +172,54 @@ def chat_with_gemini(user_query, context_lyrics):
         return f"Error: {e}"
 
 # --- Main Layout ---
-# Initialize selection variables safely before columns to prevent NameError
-selected_option = "None"
-selected_word = ""
-
-col1, col2 = st.columns([1, 1], gap="large")
+col1, col2 = st.columns([1.2, 0.8], gap="large")
 
 with col1:
     st.subheader("📝 Lyrics Editor")
     
     # Raw Input
-    raw_input = st.text_area("Enter Persian Text (No Diacritics)", value=st.session_state.lyrics_raw, height=150, key="raw_input_area")
+    raw_input = st.text_area("Enter Persian Text (No Diacritics)", value=st.session_state.lyrics_raw, height=120, key="raw_input_area")
     
-    if st.button("✨ Add Diacritics / Reset"):
+    if st.button("✨ Add Diacritics", type="primary"):
         if raw_input:
             with st.spinner("Analyzing and adding اعراب..."):
                 st.session_state.lyrics_raw = raw_input
                 st.session_state.lyrics_processed = generate_diacritics(raw_input)
-                # Reset chat on new generation
+                # Reset chat and selection on new generation
                 st.session_state.messages = [] 
+                st.session_state.selected_word_index = None
+                # Clear query params so previous selection doesn't persist
+                st.query_params.clear()
                 st.rerun()
         else:
             st.warning("Please enter some text first.")
 
     st.divider()
 
-    # Processed Output & Word Selection
-    st.subheader("📖 Result with Diacritics")
+    # Processed Output & Interaction
+    st.subheader("📖 Clickable Results")
     
     if st.session_state.lyrics_processed:
-        # Split text into words for selection logic (simple split by space)
-        # Note: This is a basic tokenizer. For complex Persian, a library like Hazm is better, but keeping it simple for one file.
         words = st.session_state.lyrics_processed.split()
         
-        # Word Inspector
-        st.write("👇 **Word Inspector:** Select a word to discuss or change.")
+        # Build HTML for clickable words
+        html_content = '<div class="rtl-text">'
         
-        # Create a list of options with index to handle duplicate words
-        word_options = [f"{i}: {w}" for i, w in enumerate(words)]
-        
-        selected_option = st.selectbox(
-            "Select word", 
-            options=["None"] + word_options,
-            label_visibility="collapsed"
-        )
-        
-        if selected_option != "None":
-            idx = int(selected_option.split(":")[0])
-            selected_word = words[idx]
+        for idx, word in enumerate(words):
+            # Check if this word is selected
+            is_active = (st.session_state.selected_word_index == idx)
+            css_class = "word-link-active" if is_active else "word-link"
             
-            # Highlight Logic
-            # Reconstruct text with HTML highlight
-            highlighted_text = ""
-            for i, w in enumerate(words):
-                if i == idx:
-                    highlighted_text += f"<span class='highlighted-word'>{w}</span> "
-                else:
-                    highlighted_text += f"{w} "
-            
-            st.markdown(f"<div class='rtl-text'>{highlighted_text}</div>", unsafe_allow_html=True)
-        else:
-            # Standard Display
-            st.markdown(f"<div class='rtl-text'>{st.session_state.lyrics_processed}</div>", unsafe_allow_html=True)
+            # Create a link that reloads the page with the index parameter
+            # target="_self" ensures it stays in the same tab
+            html_content += f'<a href="?selected_index={idx}" target="_self" class="{css_class}">{word}</a>'
+        
+        html_content += '</div>'
+        
+        st.markdown(html_content, unsafe_allow_html=True)
+        
+        if st.session_state.selected_word_index is None:
+            st.info("👆 Click on any word above to select it for the debate.")
             
     else:
         st.info("Generated lyrics will appear here.")
@@ -209,12 +227,24 @@ with col1:
 with col2:
     st.subheader("💬 Debate & Corrections")
     
+    # Determine the context (Selected word or General)
+    selected_word = ""
+    if st.session_state.lyrics_processed and st.session_state.selected_word_index is not None:
+        try:
+            words = st.session_state.lyrics_processed.split()
+            selected_word = words[st.session_state.selected_word_index]
+        except IndexError:
+            st.session_state.selected_word_index = None
+
     # Chat Container
     chat_container = st.container(height=400)
     
     with chat_container:
         if not st.session_state.messages:
-            st.markdown("ask Gemini to critique the diacritics or suggest changes.")
+            if selected_word:
+                st.markdown(f"**Selected:** `{selected_word}`\n\nAsk me about this word!")
+            else:
+                st.markdown("Ask Gemini to critique the diacritics or suggest changes.")
             
         for msg in st.session_state.messages:
             if msg['role'] == 'user':
@@ -237,23 +267,20 @@ with col2:
     
     # Contextual Input Construction
     default_prompt = ""
-    # Safe check now that selected_option and selected_word are initialized
-    if selected_option != "None" and selected_word:
-        st.caption(f"Selected: **{selected_word}**")
-        col_act1, col_act2, col_act3 = st.columns(3)
-        if col_act1.button("Why this form?"):
-            default_prompt = f"Why did you use the form '{selected_word}'? Is there an alternative?"
-        if col_act2.button("Change Word"):
-            default_prompt = f"Please change '{selected_word}' to..."
-        if col_act3.button("Is it poetic?"):
-            default_prompt = f"Does '{selected_word}' fit the poetic meter here?"
+    
+    if selected_word:
+        st.caption(f"Talking about: **{selected_word}**")
+        col_act1, col_act2 = st.columns(2)
+        if col_act1.button("Why this form?", use_container_width=True):
+            default_prompt = f"Regarding the word '{selected_word}': Why did you choose this specific form/diacritic? Is there an alternative?"
+        if col_act2.button("Suggest Change", use_container_width=True):
+            default_prompt = f"Please suggest alternatives for '{selected_word}' that might fit better."
 
     # The actual text input
     user_input = st.chat_input("Type your message here...", key="chat_input")
     
-    # Handle Button Clicks (Buttons don't automatically submit chat_input, so we simulate submission)
+    # Handle Button Clicks
     if default_prompt and not user_input:
-        # If a button set the prompt, we treat it as the user input immediately
         user_input = default_prompt
 
     if user_input:
