@@ -83,7 +83,8 @@ with st.sidebar:
     3. Use the 'Word Inspector' to discuss specific words with Gemini.
     """)
     
-    model_choice = st.selectbox("Model", ["gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-1.5-pro"])
+    # Updated model list to prioritize Pro and include experimental versions
+    model_choice = st.selectbox("Model", ["gemini-1.5-pro", "gemini-2.0-flash-exp", "gemini-1.5-flash"])
     
     if st.button("Clear Conversation"):
         st.session_state.messages = []
@@ -139,6 +140,10 @@ def chat_with_gemini(user_query, context_lyrics):
         return f"Error: {e}"
 
 # --- Main Layout ---
+# Initialize selection variables safely before columns to prevent NameError
+selected_option = "None"
+selected_word = ""
+
 col1, col2 = st.columns([1, 1], gap="large")
 
 with col1:
@@ -180,7 +185,6 @@ with col1:
             label_visibility="collapsed"
         )
         
-        selected_word = ""
         if selected_option != "None":
             idx = int(selected_option.split(":")[0])
             selected_word = words[idx]
@@ -233,6 +237,7 @@ with col2:
     
     # Contextual Input Construction
     default_prompt = ""
+    # Safe check now that selected_option and selected_word are initialized
     if selected_option != "None" and selected_word:
         st.caption(f"Selected: **{selected_word}**")
         col_act1, col_act2, col_act3 = st.columns(3)
