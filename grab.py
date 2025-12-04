@@ -10,18 +10,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Handling Query Parameters for Click Events ---
-# Check for selection in URL (this simulates the click-to-select behavior)
-query_params = st.query_params
-selected_idx_param = query_params.get("selected_index", None)
-
-# Update session state based on URL click
-if selected_idx_param is not None:
-    try:
-        st.session_state.selected_word_index = int(selected_idx_param)
-    except ValueError:
-        st.session_state.selected_word_index = None
-
 # --- Custom CSS for RTL and Styling ---
 st.markdown("""
 <style>
@@ -53,31 +41,20 @@ st.markdown("""
         border-left: 5px solid #00a8e8;
     }
     
-    /* Clickable Word Styling */
-    a.word-link {
-        text-decoration: none;
-        color: #2c3e50;
-        padding: 4px 8px;
-        border-radius: 6px;
-        margin: 0 2px;
-        transition: all 0.2s ease;
-        border: 1px solid transparent;
-        display: inline-block;
-    }
-    a.word-link:hover {
-        background-color: #e0e0e0;
-        border-color: #bdc3c7;
-        color: #000;
-        text-decoration: none !important;
+    /* Styling for Pills (Clickable words) to be RTL */
+    div[data-testid="stPills"] {
+        direction: rtl;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        justify-content: flex-start; /* Align to right for RTL context if direction is rtl */
     }
     
-    /* Active/Selected Word Styling */
-    a.word-link-active {
-        background-color: #ffe4b5 !important;
-        border-color: #d35400 !important;
-        color: #d35400 !important;
-        font-weight: bold;
-        transform: scale(1.1);
+    /* Adjust pill text */
+    div[data-testid="stPills"] button {
+        font-family: 'Tahoma', 'Arial', sans-serif !important;
+        font-size: 1.1em !important;
+        padding: 0.25rem 0.75rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -89,8 +66,6 @@ if "lyrics_raw" not in st.session_state:
     st.session_state.lyrics_raw = ""
 if "lyrics_processed" not in st.session_state:
     st.session_state.lyrics_processed = ""
-if "selected_word_index" not in st.session_state:
-    st.session_state.selected_word_index = None
 
 # --- Sidebar: Configuration ---
 with st.sidebar:
@@ -111,12 +86,18 @@ with st.sidebar:
     **How to use:**
     1. Enter Persian lyrics.
     2. Click 'Add Diacritics'.
-    3. **Click on any word** in the result to select it.
+    3. **Click on any word chip** to select it.
     4. Chat with Gemini about the selected word.
     """)
     
-    # Updated model list to prioritize Pro and include experimental versions
-    model_choice = st.selectbox("Model", ["gemini-2.5-flash-preview-09-2025", "gemini-1.5-pro", "gemini-2.0-flash-exp", "gemini-1.5-flash"])
+    # Updated model list to include Gemini 3.0 Preview
+    model_choice = st.selectbox("Model", [
+        "gemini-3.0-flash-preview", 
+        "gemini-2.5-flash-preview-09-2025", 
+        "gemini-1.5-pro", 
+        "gemini-2.0-flash-exp", 
+        "gemini-1.5-flash"
+    ])
     
     if st.button("Clear Conversation"):
         st.session_state.messages = []
@@ -185,11 +166,7 @@ with col1:
             with st.spinner("Analyzing and adding اعراب..."):
                 st.session_state.lyrics_raw = raw_input
                 st.session_state.lyrics_processed = generate_diacritics(raw_input)
-                # Reset chat and selection on new generation
                 st.session_state.messages = [] 
-                st.session_state.selected_word_index = None
-                # Clear query params so previous selection doesn't persist
-                st.query_params.clear()
                 st.rerun()
         else:
             st.warning("Please enter some text first.")
@@ -199,27 +176,29 @@ with col1:
     # Processed Output & Interaction
     st.subheader("📖 Clickable Results")
     
+    selected_word = ""
+    
     if st.session_state.lyrics_processed:
         words = st.session_state.lyrics_processed.split()
         
-        # Build HTML for clickable words
-        html_content = '<div class="rtl-text">'
-        
-        for idx, word in enumerate(words):
-            # Check if this word is selected
-            is_active = (st.session_state.selected_word_index == idx)
-            css_class = "word-link-active" if is_active else "word-link"
-            
-            # Create a link that reloads the page with the index parameter
-            # target="_self" ensures it stays in the same tab
-            html_content += f'<a href="?selected_index={idx}" target="_self" class="{css_class}">{word}</a>'
-        
-        html_content += '</div>'
-        
-        st.markdown(html_content, unsafe_allow_html=True)
-        
-        if st.session_state.selected_word_index is None:
-            st.info("👆 Click on any word above to select it for the debate.")
+        # Use st.pills for selection to avoid page reload issues
+        # We use indices as options to handle duplicate words
+        if hasattr(st, "pills"):
+            selected_idx = st.pills(
+                "Select a word to discuss:",
+                options=range(len(words)),
+                format_func=lambda i: words[i],
+                selection_mode="single",
+                label_visibility="collapsed"
+            )
+        else:
+            # Fallback for older Streamlit versions
+            st.warning("Update Streamlit to use clickable pills. Using dropdown fallback.")
+            selected_idx_opt = st.selectbox("Select word:", options=["None"] + [f"{i}: {w}" for i, w in enumerate(words)])
+            selected_idx = int(selected_idx_opt.split(":")[0]) if selected_idx_opt != "None" else None
+
+        if selected_idx is not None:
+            selected_word = words[selected_idx]
             
     else:
         st.info("Generated lyrics will appear here.")
@@ -227,15 +206,6 @@ with col1:
 with col2:
     st.subheader("💬 Debate & Corrections")
     
-    # Determine the context (Selected word or General)
-    selected_word = ""
-    if st.session_state.lyrics_processed and st.session_state.selected_word_index is not None:
-        try:
-            words = st.session_state.lyrics_processed.split()
-            selected_word = words[st.session_state.selected_word_index]
-        except IndexError:
-            st.session_state.selected_word_index = None
-
     # Chat Container
     chat_container = st.container(height=400)
     
