@@ -65,11 +65,14 @@ if "selected_word_index" not in st.session_state:
 with st.sidebar:
     st.header("⚙️ Configuration")
     
-    api_key = st.text_input("Gemini API Key", type="password", help="Get your key from aistudio.google.com")
-    
-    # Try to load from environment if not provided
-    if not api_key:
+    # Check secrets first, then env, then fallback to user input
+    if "GOOGLE_API_KEY" in st.secrets:
+        api_key = st.secrets["GOOGLE_API_KEY"]
+        st.success("API Key loaded from secrets! 🔒")
+    else:
         api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            api_key = st.text_input("Gemini API Key", type="password", help="Get your key from aistudio.google.com")
 
     st.divider()
     
