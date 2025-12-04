@@ -123,13 +123,11 @@ else:
 def generate_diacritics(text):
     """Calls Gemini to add diacritics to Persian text."""
     prompt = f"""
-    You are an expert in Persian literature and grammar.
-    Task: Add full and comprehensive diacritics (Harakat/Erab: Fatha, Kasra, Damma, Sokoun, Tashdid) to the following Persian text to ensure exact pronunciation.
+    لطفا این شعر فارسی را برای پرامپ موزیک اعراب گذاری کن.
     
     Strict Rules:
-    1. Every single word MUST have diacritics.
-    2. Output ONLY the processed Persian text.
-    3. Do not add translations or explanations.
+    1. Output ONLY the processed Persian text with diacritics.
+    2. Do not add translations, explanations, or introductory text.
     
     Input Text:
     {text}
