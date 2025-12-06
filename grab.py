@@ -3,6 +3,7 @@ import google.generativeai as genai
 from openai import OpenAI
 import os
 import time
+import tempfile
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -100,7 +101,7 @@ with st.sidebar:
             openai_api_key = st.text_input("OpenAI API Key", type="password", help="Required for fallback logic")
     
     # Updated to include GPT-5 Nano and Mini
-    openai_model = st.selectbox("Fallback Model", ["gpt-5-nano", "gpt-5-mini", "gpt-4o-mini"])
+    openai_model = st.selectbox("Fallback Model", ["gpt-5-nano", "gpt-5-mini", "gpt-4o-mini", "gpt-4o"])
 
     st.divider()
     
@@ -133,27 +134,59 @@ class MockResponse:
         self.text = text
 
 def generate_with_openai_fallback(contents):
-    """Fallback function to generate text using OpenAI (GPT-5 Nano/Mini)."""
+    """Fallback function to generate text using OpenAI."""
     if not openai_client:
         return None
         
     try:
-        # Check if contents is complex (list with blobs) or simple string
+        prompt_parts = []
+        
+        # Check if contents is complex (list) or simple string
         if isinstance(contents, list):
-            # If it contains binary data (audio), we can't easily fallback to text-only models
-            # checking for dicts in list which represent media blobs
-            if any(isinstance(item, dict) for item in contents):
-                st.warning(f"⚠️ OpenAI ({openai_model}) fallback skipped: Audio input not supported via this path.")
-                return None
-            prompt_text = " ".join([c for c in contents if isinstance(c, str)])
+            for item in contents:
+                if isinstance(item, str):
+                    prompt_parts.append(item)
+                elif isinstance(item, dict) and "data" in item:
+                    # Handle Audio for OpenAI Fallback using GPT-4o Transcribe
+                    # We must save bytes to a temp file for the OpenAI library to read
+                    try:
+                        suffix = ".wav" 
+                        if "mime_type" in item:
+                            if "mp3" in item["mime_type"]: suffix = ".mp3"
+                            elif "ogg" in item["mime_type"]: suffix = ".ogg"
+                            elif "m4a" in item["mime_type"]: suffix = ".m4a"
+
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
+                            tmp_file.write(item["data"])
+                            tmp_filepath = tmp_file.name
+                        
+                        # Transcribe audio using the superior gpt-4o-transcribe model
+                        with open(tmp_filepath, "rb") as audio_file:
+                            transcription = openai_client.audio.transcriptions.create(
+                                model="gpt-4o-transcribe", 
+                                file=audio_file,
+                                language="fa" # Hint for Persian
+                            )
+                        
+                        # Add transcription to prompt
+                        prompt_parts.append(f"\n[Audio Transcription]: {transcription.text}\n")
+                        
+                        # Clean up temp file
+                        os.unlink(tmp_filepath)
+                        
+                    except Exception as audio_err:
+                        st.warning(f"Fallback Audio Processing Error: {audio_err}")
+                        
         else:
-            prompt_text = contents
+            prompt_parts.append(contents)
+            
+        final_prompt = " ".join(prompt_parts)
 
         response = openai_client.chat.completions.create(
             model=openai_model,
             messages=[
                 {"role": "system", "content": "You are a helpful assistant specialized in Persian poetry and lyrics. You must strictly follow formatting rules."},
-                {"role": "user", "content": prompt_text}
+                {"role": "user", "content": final_prompt}
             ],
             temperature=0.7
         )
@@ -190,7 +223,7 @@ def safe_generate_content(contents, **kwargs):
     # Broadened check for fallback trigger
     if any(k in error_str for k in ["quota", "429", "resource", "exhausted", "limit"]):
         if openai_client:
-            st.warning(f"⚠️ Gemini Quota Exceeded. Switching to {openai_model} for this request...")
+            st.warning(f"⚠️ Gemini Quota Exceeded. Switching to OpenAI ({openai_model}) for this request...")
             fallback_response = generate_with_openai_fallback(contents)
             if fallback_response:
                 return fallback_response
@@ -259,7 +292,6 @@ def extract_lyrics_from_audio(audio_bytes, mime_type):
     3. Break lines according to the musical phrasing.
     4. Ignore instrumental parts and background noise.
     """
-    # Note: Fallback won't work here easily as GPT-5 Nano doesn't support direct audio uploads via this simple chat method without Whisper
     response = safe_generate_content([
         prompt,
         {
@@ -288,7 +320,6 @@ def process_voice_correction(current_text, audio_bytes):
     Current Persian Text:
     {current_text}
     """
-    # Note: Fallback won't work here easily as GPT-5 Nano doesn't support direct audio uploads via this simple chat method without Whisper
     response = safe_generate_content([
         prompt,
         {
