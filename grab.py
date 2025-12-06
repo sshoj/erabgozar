@@ -150,11 +150,16 @@ def generate_with_openai_fallback(contents):
                     # Handle Audio for OpenAI Fallback using GPT-4o Transcribe
                     # We must save bytes to a temp file for the OpenAI library to read
                     try:
+                        # Improved MIME type mapping to ensure correct file extension
                         suffix = ".wav" 
                         if "mime_type" in item:
-                            if "mp3" in item["mime_type"]: suffix = ".mp3"
-                            elif "ogg" in item["mime_type"]: suffix = ".ogg"
-                            elif "m4a" in item["mime_type"]: suffix = ".m4a"
+                            mt = item["mime_type"].lower()
+                            if "mpeg" in mt or "mp3" in mt: suffix = ".mp3"
+                            elif "ogg" in mt: suffix = ".ogg"
+                            elif "webm" in mt: suffix = ".webm"
+                            elif "mp4" in mt or "m4a" in mt: suffix = ".m4a"
+                            elif "flac" in mt: suffix = ".flac"
+                            elif "wav" in mt: suffix = ".wav"
 
                         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
                             tmp_file.write(item["data"])
