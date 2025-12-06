@@ -1,6 +1,7 @@
 import streamlit as st
 import google.generativeai as genai
 import os
+import time
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -102,6 +103,41 @@ else:
     st.stop()
 
 # --- Helper Functions ---
+
+def safe_generate_content(contents, **kwargs):
+    """
+    Wrapper for model.generate_content with exponential backoff for quota errors.
+    Retries up to 5 times with delays of 1s, 2s, 4s, 8s, 16s.
+    """
+    retries = 5
+    delay = 1
+    last_exception = None
+
+    for attempt in range(retries):
+        try:
+            return model.generate_content(contents, **kwargs)
+        except Exception as e:
+            last_exception = e
+            error_str = str(e).lower()
+            # Check for rate limit (429) or quota related keywords
+            if "429" in error_str or "quota" in error_str or "resource" in error_str:
+                time.sleep(delay)
+                delay *= 2
+            else:
+                # For other errors, we might also want to retry briefly or fail fast.
+                # Per guidelines, we retry API calls.
+                time.sleep(delay)
+                delay *= 2
+    
+    # If all retries fail
+    if last_exception:
+        error_str = str(last_exception).lower()
+        if "quota" in error_str or "429" in error_str:
+            st.error("⚠️ **Quota Exceeded:** You have hit the rate limit for the Gemini API. Please wait a minute and try again.")
+        else:
+            st.error(f"⚠️ **API Error:** {last_exception}")
+    return None
+
 def generate_diacritics(text):
     """Calls Gemini to add diacritics to Persian text."""
     prompt = f"""
@@ -118,12 +154,10 @@ def generate_diacritics(text):
     Input Text:
     {text}
     """
-    try:
-        response = model.generate_content(prompt)
+    response = safe_generate_content(prompt)
+    if response:
         return response.text.strip()
-    except Exception as e:
-        st.error(f"Error generating diacritics: {e}")
-        return text
+    return text
 
 def generate_finglish(text):
     """Calls Gemini to create a Finglish version for Suno AI."""
@@ -139,12 +173,10 @@ def generate_finglish(text):
     Input Persian Text:
     {text}
     """
-    try:
-        response = model.generate_content(prompt)
+    response = safe_generate_content(prompt)
+    if response:
         return response.text.strip()
-    except Exception as e:
-        st.error(f"Error generating finglish: {e}")
-        return ""
+    return ""
 
 def extract_lyrics_from_audio(audio_bytes, mime_type):
     """Extracts Persian lyrics from an uploaded audio file using AI vocal focus."""
@@ -162,18 +194,16 @@ def extract_lyrics_from_audio(audio_bytes, mime_type):
     3. Break lines according to the musical phrasing.
     4. Ignore instrumental parts and background noise.
     """
-    try:
-        response = model.generate_content([
-            prompt,
-            {
-                "mime_type": mime_type,
-                "data": audio_bytes
-            }
-        ])
+    response = safe_generate_content([
+        prompt,
+        {
+            "mime_type": mime_type,
+            "data": audio_bytes
+        }
+    ])
+    if response:
         return response.text.strip()
-    except Exception as e:
-        st.error(f"Error extracting lyrics from audio: {e}")
-        return ""
+    return ""
 
 def process_voice_correction(current_text, audio_bytes):
     """Uses Gemini to correct text based on voice input."""
@@ -192,18 +222,16 @@ def process_voice_correction(current_text, audio_bytes):
     Current Persian Text:
     {current_text}
     """
-    try:
-        response = model.generate_content([
-            prompt,
-            {
-                "mime_type": "audio/wav",
-                "data": audio_bytes
-            }
-        ])
+    response = safe_generate_content([
+        prompt,
+        {
+            "mime_type": "audio/wav",
+            "data": audio_bytes
+        }
+    ])
+    if response:
         return response.text.strip()
-    except Exception as e:
-        st.error(f"Error processing voice correction: {e}")
-        return current_text
+    return current_text
 
 # --- Main Layout ---
 st.subheader("📝 Persian Lyrics Input")
