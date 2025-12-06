@@ -79,7 +79,7 @@ with st.sidebar:
     
     st.info("""
     **How to use:**
-    1. Enter Persian lyrics.
+    1. **Upload Music** to extract lyrics OR enter text manually.
     2. Click 'Generate Outputs'.
     3. **Left:** Get Persian text with Diacritics.
     4. **Right:** Get Finglish text for Suno AI.
@@ -143,6 +143,31 @@ def generate_finglish(text):
         st.error(f"Error generating finglish: {e}")
         return ""
 
+def extract_lyrics_from_audio(audio_bytes, mime_type):
+    """Extracts Persian lyrics from an uploaded audio file."""
+    prompt = """
+    Listen to this audio file containing a Persian song.
+    Task: Transcribe the lyrics exactly as sung in Persian.
+    
+    Rules:
+    1. Output ONLY the Persian lyrics.
+    2. Do not add translation or transliteration.
+    3. Break lines according to the musical phrasing.
+    4. Ignore instrumental parts.
+    """
+    try:
+        response = model.generate_content([
+            prompt,
+            {
+                "mime_type": mime_type,
+                "data": audio_bytes
+            }
+        ])
+        return response.text.strip()
+    except Exception as e:
+        st.error(f"Error extracting lyrics from audio: {e}")
+        return ""
+
 def process_voice_correction(current_text, audio_bytes):
     """Uses Gemini to correct text based on voice input."""
     prompt = f"""
@@ -172,6 +197,20 @@ def process_voice_correction(current_text, audio_bytes):
 
 # --- Main Layout ---
 st.subheader("📝 Persian Lyrics Input")
+
+# Audio Extraction Feature
+with st.expander("🎵 Extract Lyrics from Audio File"):
+    uploaded_file = st.file_uploader("Upload a Persian song (MP3, WAV, M4A, OGG)", type=['mp3', 'wav', 'm4a', 'ogg'])
+    if uploaded_file is not None:
+        if st.button("Extract Lyrics from Audio"):
+            with st.spinner("Listening and transcribing..."):
+                audio_bytes = uploaded_file.read()
+                extracted_text = extract_lyrics_from_audio(audio_bytes, uploaded_file.type)
+                if extracted_text:
+                    st.session_state.lyrics_raw = extracted_text
+                    st.success("Lyrics extracted successfully! You can review them in the text area below.")
+                    st.rerun()
+
 raw_input = st.text_area("Paste your lyrics here:", value=st.session_state.lyrics_raw, height=120, label_visibility="collapsed")
 
 if st.button("✨ Generate Outputs", type="primary", use_container_width=True):
@@ -216,7 +255,7 @@ with col2:
 # --- Voice Correction Section ---
 st.markdown("---")
 st.subheader("🎙️ Native Speaker Correction")
-st.caption("Record your voice to correct the generated Persian lyrics. You can read the correct verse or explain the fix.")
+st.caption("Record your voice to correct the generated Persian lyrics. **Click once to start recording, and click again to stop (Do not hold).**")
 
 audio_value = st.audio_input("Record correction")
 
