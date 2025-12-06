@@ -182,13 +182,13 @@ def generate_with_openai_fallback(contents):
             
         final_prompt = " ".join(prompt_parts)
 
+        # Removed temperature=0.7 as reasoning models (like gpt-5-nano) often do not support it or require default (1)
         response = openai_client.chat.completions.create(
             model=openai_model,
             messages=[
                 {"role": "system", "content": "You are a helpful assistant specialized in Persian poetry and lyrics. You must strictly follow formatting rules."},
                 {"role": "user", "content": final_prompt}
-            ],
-            temperature=0.7
+            ]
         )
         return MockResponse(response.choices[0].message.content)
     except Exception as e:
