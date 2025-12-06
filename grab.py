@@ -236,38 +236,38 @@ with col2:
         
         # Row 1: Short Vowels
         with k_col1:
-            if st.button("َ  (َ)", help="Fatha", key="btn_fatha"):
+            if st.button("َ", help="Fatha", key="btn_fatha"):
                 append_to_editor("َ")
                 st.rerun()
         with k_col2:
-            if st.button("ِ  (ِ)", help="Kasra", key="btn_kasra"):
+            if st.button("ِ", help="Kasra", key="btn_kasra"):
                 append_to_editor("ِ")
                 st.rerun()
         with k_col3:
-            if st.button("ُ  (ُ)", help="Damma", key="btn_damma"):
+            if st.button("ُ", help="Damma", key="btn_damma"):
                 append_to_editor("ُ")
                 st.rerun()
         with k_col4:
-            if st.button("ّ  (ّ)", help="Tashdid", key="btn_tashdid"):
+            if st.button("ّ", help="Tashdid", key="btn_tashdid"):
                 append_to_editor("ّ")
                 st.rerun()
 
         # Row 2: Others
         k_col5, k_col6, k_col7, k_col8 = st.columns(4)
         with k_col5:
-            if st.button("ْ  (ْ)", help="Sokoun", key="btn_sokoun"):
+            if st.button("ْ", help="Sokoun", key="btn_sokoun"):
                 append_to_editor("ْ")
                 st.rerun()
         with k_col6:
-            if st.button("ً  (ً)", help="Fathatan", key="btn_an"):
+            if st.button("ً", help="Fathatan", key="btn_an"):
                 append_to_editor("ً")
                 st.rerun()
         with k_col7:
-            if st.button("ٍ  (ٍ)", help="Kasratan", key="btn_en"):
+            if st.button("ٍ", help="Kasratan", key="btn_en"):
                 append_to_editor("ٍ")
                 st.rerun()
         with k_col8:
-            if st.button("ٌ  (ٌ)", help="Dammatan", key="btn_on"):
+            if st.button("ٌ", help="Dammatan", key="btn_on"):
                 append_to_editor("ٌ")
                 st.rerun()
                 
