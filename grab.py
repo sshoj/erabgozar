@@ -202,13 +202,18 @@ st.subheader("📝 Persian Lyrics Input")
 with st.expander("🎵 Extract Lyrics from Audio File"):
     uploaded_file = st.file_uploader("Upload a Persian song (MP3, WAV, M4A, OGG)", type=['mp3', 'wav', 'm4a', 'ogg'])
     if uploaded_file is not None:
-        if st.button("Extract Lyrics from Audio"):
-            with st.spinner("Listening and transcribing..."):
+        if st.button("Extract Lyrics & Auto-Generate"):
+            with st.spinner("Listening, transcribing, and processing..."):
                 audio_bytes = uploaded_file.read()
                 extracted_text = extract_lyrics_from_audio(audio_bytes, uploaded_file.type)
                 if extracted_text:
                     st.session_state.lyrics_raw = extracted_text
-                    st.success("Lyrics extracted successfully! You can review them in the text area below.")
+                    
+                    # Automatically generate outputs
+                    st.session_state.lyrics_processed = generate_diacritics(extracted_text)
+                    st.session_state.lyrics_finglish = generate_finglish(extracted_text)
+                    
+                    st.success("Lyrics extracted and processed! Check results below.")
                     st.rerun()
 
 raw_input = st.text_area("Paste your lyrics here:", value=st.session_state.lyrics_raw, height=120, label_visibility="collapsed")
