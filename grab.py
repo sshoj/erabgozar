@@ -177,7 +177,8 @@ def safe_generate_content(contents, **kwargs):
         except Exception as e:
             last_exception = e
             error_str = str(e).lower()
-            if "429" in error_str or "quota" in error_str or "resource" in error_str:
+            # Catch wider range of resource/quota errors
+            if any(k in error_str for k in ["429", "quota", "resource", "exhausted", "limit"]):
                 time.sleep(delay)
                 delay *= 2
             else:
@@ -186,7 +187,8 @@ def safe_generate_content(contents, **kwargs):
     
     # 2. If Gemini failed, try OpenAI Fallback
     error_str = str(last_exception).lower() if last_exception else ""
-    if "quota" in error_str or "429" in error_str:
+    # Broadened check for fallback trigger
+    if any(k in error_str for k in ["quota", "429", "resource", "exhausted", "limit"]):
         if openai_client:
             st.warning(f"⚠️ Gemini Quota Exceeded. Switching to {openai_model} for this request...")
             fallback_response = generate_with_openai_fallback(contents)
