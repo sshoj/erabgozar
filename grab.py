@@ -29,34 +29,27 @@ st.markdown("""
         margin-bottom: 20px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
+    
+    /* LTR Text for Finglish */
+    .ltr-text {
+        direction: ltr;
+        text-align: left;
+        font-family: 'Courier New', monospace;
+        font-size: 1.4em;
+        line-height: 2.0em;
+        white-space: pre-wrap;
+        background-color: #f0f4f8 !important; /* Light blue-grey */
+        color: #000000 !important;
+        padding: 25px;
+        border-radius: 10px;
+        border: 2px solid #6c757d !important;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
     .stTextArea textarea {
         direction: rtl;
         font-family: 'Tahoma', 'Arial', sans-serif;
-    }
-    
-    /* Virtual Keyboard Button Styling */
-    .stButton button {
-        font-size: 1.5em !important;
-        font-family: 'Tahoma', 'Arial', sans-serif !important;
-        padding: 0.2rem 0.5rem !important;
-        min-height: 50px;
-        width: 100%;
-    }
-    
-    /* Styling for Pills (Clickable words) to be RTL */
-    div[data-testid="stPills"] {
-        direction: rtl;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        justify-content: flex-start;
-    }
-    
-    /* Adjust pill text */
-    div[data-testid="stPills"] button {
-        font-family: 'Tahoma', 'Arial', sans-serif !important;
-        font-size: 1.0em !important;
-        padding: 0.25rem 0.75rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -66,11 +59,8 @@ if "lyrics_raw" not in st.session_state:
     st.session_state.lyrics_raw = ""
 if "lyrics_processed" not in st.session_state:
     st.session_state.lyrics_processed = ""
-# State for the editor buffer
-if "editor_text" not in st.session_state:
-    st.session_state.editor_text = ""
-if "last_selected" not in st.session_state:
-    st.session_state.last_selected = ""
+if "lyrics_finglish" not in st.session_state:
+    st.session_state.lyrics_finglish = ""
 
 # --- Sidebar: Configuration ---
 with st.sidebar:
@@ -90,9 +80,9 @@ with st.sidebar:
     st.info("""
     **How to use:**
     1. Enter Persian lyrics.
-    2. Click 'Add Diacritics'.
-    3. Select words to edit.
-    4. Use the Virtual Keyboard to fix diacritics.
+    2. Click 'Generate Outputs'.
+    3. **Left:** Get Persian text with Diacritics.
+    4. **Right:** Get Finglish text for Suno AI.
     """)
     
     model_choice = st.selectbox("Model", [
@@ -131,163 +121,69 @@ def generate_diacritics(text):
         st.error(f"Error generating diacritics: {e}")
         return text
 
-def append_to_editor(char):
-    """Appends a character to the current editor text."""
-    st.session_state.editor_text += char
-
-def save_changes(original_selection, new_text):
-    """Replaces the selected text in the main lyrics with the edited version."""
-    if original_selection and st.session_state.lyrics_processed:
-        # Simple string replacement - replaces all occurrences of the selection
-        # For more precision, we would need index-based tracking, but this fits the current 'unique words' logic.
-        st.session_state.lyrics_processed = st.session_state.lyrics_processed.replace(original_selection, new_text)
-        st.success("Changes applied!")
-        # Update the selection tracking so we don't overwrite the new text immediately
-        st.session_state.last_selected = new_text 
-        st.session_state.editor_text = new_text
+def generate_finglish(text):
+    """Calls Gemini to create a Finglish version for Suno AI."""
+    prompt = f"""
+    Convert the following Persian lyrics into "Finglish" (Pinglish) specifically optimized for AI Music Generators like Suno AI.
+    
+    Strict Rules:
+    1. The output must be phonetically accurate so an English-based AI reads it as Persian.
+    2. Use clear spacing.
+    3. Output ONLY the Finglish text. No explanations.
+    4. Maintain the line structure of the original poem.
+    
+    Input Persian Text:
+    {text}
+    """
+    try:
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        st.error(f"Error generating finglish: {e}")
+        return ""
 
 # --- Main Layout ---
-col1, col2 = st.columns([1.2, 0.8], gap="large")
+st.subheader("📝 Persian Lyrics Input")
+raw_input = st.text_area("Paste your lyrics here:", value=st.session_state.lyrics_raw, height=120, label_visibility="collapsed")
+
+if st.button("✨ Generate Outputs", type="primary", use_container_width=True):
+    if raw_input:
+        st.session_state.lyrics_raw = raw_input
+        with st.spinner("Processing Lyrics (Diacritics & Finglish)..."):
+            # Generate both concurrently (or sequentially for simplicity)
+            st.session_state.lyrics_processed = generate_diacritics(raw_input)
+            st.session_state.lyrics_finglish = generate_finglish(raw_input)
+            st.rerun()
+    else:
+        st.warning("Please enter some text first.")
+
+st.divider()
+
+col1, col2 = st.columns(2, gap="large")
 
 with col1:
-    st.subheader("📝 Lyrics Editor")
-    
-    # Raw Input
-    raw_input = st.text_area("Enter Persian Text (No Diacritics)", value=st.session_state.lyrics_raw, height=120, key="raw_input_area")
-    
-    if st.button("✨ Add Diacritics", type="primary"):
-        if raw_input:
-            with st.spinner("Analyzing and adding اعراب..."):
-                st.session_state.lyrics_raw = raw_input
-                st.session_state.lyrics_processed = generate_diacritics(raw_input)
-                st.rerun()
-        else:
-            st.warning("Please enter some text first.")
-
-    st.divider()
-
-    # Processed Output & Interaction
-    st.subheader("📖 Result (اعراب گذاری)")
-    
-    selected_word_string = ""
-    
+    st.subheader("📖 Persian (اعراب گذاری)")
     if st.session_state.lyrics_processed:
-        # 1. Show the full structured poem first (Readable View)
         st.markdown(f"""
         <div class='rtl-text'>{st.session_state.lyrics_processed}</div>
         """, unsafe_allow_html=True)
         
-        # 2. Add Copy Button
-        with st.expander("📋 Copy Text / کپی متن"):
+        with st.expander("📋 Copy Persian / کپی متن"):
             st.code(st.session_state.lyrics_processed, language="text")
-        
-        st.caption("👇 Select word(s) below to edit:")
-        
-        words = st.session_state.lyrics_processed.split()
-        unique_words = list(dict.fromkeys(words))
-        
-        # 3. Selection Pills
-        if hasattr(st, "pills"):
-            selected_words_list = st.pills(
-                "Word Selection",
-                options=unique_words,
-                selection_mode="multi",
-                label_visibility="collapsed"
-            )
-        else:
-            st.warning("Update Streamlit to use clickable pills. Using dropdown fallback.")
-            selected_words_list = st.multiselect("Select words:", options=unique_words)
-
-        if selected_words_list:
-            selected_word_string = " ".join(selected_words_list)
-            
     else:
-        st.info("Generated lyrics will appear here.")
+        st.info("Persian result with diacritics will appear here.")
 
 with col2:
-    st.subheader("⌨️ Virtual Editor")
-    
-    if selected_word_string:
-        # Check if selection changed to update the buffer
-        if selected_word_string != st.session_state.last_selected:
-            st.session_state.editor_text = selected_word_string
-            st.session_state.last_selected = selected_word_string
-
-        # Editor Input Area
-        st.markdown("Edit the selected text below:")
+    st.subheader("🎵 Finglish (Suno AI)")
+    if st.session_state.lyrics_finglish:
+        st.markdown(f"""
+        <div class='ltr-text'>{st.session_state.lyrics_finglish}</div>
+        """, unsafe_allow_html=True)
         
-        # Text Input for the word being edited
-        # We use on_change to capture manual typing
-        current_edit = st.text_input(
-            "Editor",
-            value=st.session_state.editor_text,
-            key="editor_input",
-            label_visibility="collapsed"
-        )
-        # Sync manual typing back to state
-        if current_edit != st.session_state.editor_text:
-             st.session_state.editor_text = current_edit
-
-        st.markdown("---")
-        st.caption("Add Diacritics:")
-
-        # Virtual Keyboard Grid
-        k_col1, k_col2, k_col3, k_col4 = st.columns(4)
-        
-        # Row 1: Short Vowels
-        with k_col1:
-            if st.button("َ", help="Fatha", key="btn_fatha"):
-                append_to_editor("َ")
-                st.rerun()
-        with k_col2:
-            if st.button("ِ", help="Kasra", key="btn_kasra"):
-                append_to_editor("ِ")
-                st.rerun()
-        with k_col3:
-            if st.button("ُ", help="Damma", key="btn_damma"):
-                append_to_editor("ُ")
-                st.rerun()
-        with k_col4:
-            if st.button("ّ", help="Tashdid", key="btn_tashdid"):
-                append_to_editor("ّ")
-                st.rerun()
-
-        # Row 2: Others
-        k_col5, k_col6, k_col7, k_col8 = st.columns(4)
-        with k_col5:
-            if st.button("ْ", help="Sokoun", key="btn_sokoun"):
-                append_to_editor("ْ")
-                st.rerun()
-        with k_col6:
-            if st.button("ً", help="Fathatan", key="btn_an"):
-                append_to_editor("ً")
-                st.rerun()
-        with k_col7:
-            if st.button("ٍ", help="Kasratan", key="btn_en"):
-                append_to_editor("ٍ")
-                st.rerun()
-        with k_col8:
-            if st.button("ٌ", help="Dammatan", key="btn_on"):
-                append_to_editor("ٌ")
-                st.rerun()
-                
-        st.markdown("---")
-        
-        # Save Button
-        if st.button("💾 Apply Changes / ذخیره", type="primary", use_container_width=True):
-            save_changes(selected_word_string, st.session_state.editor_text)
-            st.rerun()
-            
+        with st.expander("📋 Copy Finglish"):
+            st.code(st.session_state.lyrics_finglish, language="text")
     else:
-        st.info("👈 Select a word from the list to enable the virtual keyboard.")
-        
-        # Static display of keyboard for reference/preview (disabled look)
-        st.caption("Virtual Keyboard Preview:")
-        p_col1, p_col2, p_col3, p_col4 = st.columns(4)
-        p_col1.button("َ", disabled=True, key="d1")
-        p_col2.button("ِ", disabled=True, key="d2")
-        p_col3.button("ُ", disabled=True, key="d3")
-        p_col4.button("ّ", disabled=True, key="d4")
+        st.info("Finglish transliteration will appear here.")
 
 # --- Footer ---
 st.markdown("---")
