@@ -33,22 +33,14 @@ st.markdown("""
         direction: rtl;
         font-family: 'Tahoma', 'Arial', sans-serif;
     }
-    .chat-message {
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin-bottom: 1rem;
-        display: flex;
-        flex-direction: column;
-    }
-    .user-message {
-        background-color: #f0f2f6;
-        border-left: 5px solid #4a4e69;
-        color: #000000 !important;
-    }
-    .ai-message {
-        background-color: #e8f4f8;
-        border-left: 5px solid #00a8e8;
-        color: #000000 !important;
+    
+    /* Virtual Keyboard Button Styling */
+    .stButton button {
+        font-size: 1.5em !important;
+        font-family: 'Tahoma', 'Arial', sans-serif !important;
+        padding: 0.2rem 0.5rem !important;
+        min-height: 50px;
+        width: 100%;
     }
     
     /* Styling for Pills (Clickable words) to be RTL */
@@ -70,12 +62,15 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Session State Initialization ---
-if "messages" not in st.session_state:
-    st.session_state.messages = []
 if "lyrics_raw" not in st.session_state:
     st.session_state.lyrics_raw = ""
 if "lyrics_processed" not in st.session_state:
     st.session_state.lyrics_processed = ""
+# State for the editor buffer
+if "editor_text" not in st.session_state:
+    st.session_state.editor_text = ""
+if "last_selected" not in st.session_state:
+    st.session_state.last_selected = ""
 
 # --- Sidebar: Configuration ---
 with st.sidebar:
@@ -96,21 +91,16 @@ with st.sidebar:
     **How to use:**
     1. Enter Persian lyrics.
     2. Click 'Add Diacritics'.
-    3. Read the generated poem.
-    4. **Select a word** from the chips below to discuss or correct it.
+    3. Select words to edit.
+    4. Use the Virtual Keyboard to fix diacritics.
     """)
     
-    # Removed 3.0 as it is causing issues, defaulting to 2.5
     model_choice = st.selectbox("Model", [
         "gemini-2.5-flash-preview-09-2025", 
         "gemini-1.5-pro", 
         "gemini-2.0-flash-exp", 
         "gemini-1.5-flash"
     ])
-    
-    if st.button("Clear Conversation"):
-        st.session_state.messages = []
-        st.rerun()
 
 # --- Gemini API Setup ---
 if api_key:
@@ -141,28 +131,20 @@ def generate_diacritics(text):
         st.error(f"Error generating diacritics: {e}")
         return text
 
-def chat_with_gemini(user_query, context_lyrics):
-    """Sends a message to Gemini with the current lyrics context."""
-    history_prompt = "History of conversation:\n" + "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-5:]])
-    
-    prompt = f"""
-    You are a helpful and critical assistant helping a user edit Persian lyrics.
-    
-    Current Lyrics (with diacritics):
-    {context_lyrics}
-    
-    {history_prompt}
-    
-    User Request: {user_query}
-    
-    If the user asks to change a specific word, provide the updated lyrics block in your response. 
-    Explain your reasoning briefly if it involves grammar or poetic meter.
-    """
-    try:
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"Error: {e}"
+def append_to_editor(char):
+    """Appends a character to the current editor text."""
+    st.session_state.editor_text += char
+
+def save_changes(original_selection, new_text):
+    """Replaces the selected text in the main lyrics with the edited version."""
+    if original_selection and st.session_state.lyrics_processed:
+        # Simple string replacement - replaces all occurrences of the selection
+        # For more precision, we would need index-based tracking, but this fits the current 'unique words' logic.
+        st.session_state.lyrics_processed = st.session_state.lyrics_processed.replace(original_selection, new_text)
+        st.success("Changes applied!")
+        # Update the selection tracking so we don't overwrite the new text immediately
+        st.session_state.last_selected = new_text 
+        st.session_state.editor_text = new_text
 
 # --- Main Layout ---
 col1, col2 = st.columns([1.2, 0.8], gap="large")
@@ -178,7 +160,6 @@ with col1:
             with st.spinner("Analyzing and adding اعراب..."):
                 st.session_state.lyrics_raw = raw_input
                 st.session_state.lyrics_processed = generate_diacritics(raw_input)
-                st.session_state.messages = [] 
                 st.rerun()
         else:
             st.warning("Please enter some text first.")
@@ -188,29 +169,24 @@ with col1:
     # Processed Output & Interaction
     st.subheader("📖 Result (اعراب گذاری)")
     
-    selected_word = ""
+    selected_word_string = ""
     
     if st.session_state.lyrics_processed:
         # 1. Show the full structured poem first (Readable View)
-        # Using the updated css class for better visibility
         st.markdown(f"""
         <div class='rtl-text'>{st.session_state.lyrics_processed}</div>
         """, unsafe_allow_html=True)
         
-        # 2. Add Copy Button functionality using st.code
-        # This provides a native copy button for the user
+        # 2. Add Copy Button
         with st.expander("📋 Copy Text / کپی متن"):
             st.code(st.session_state.lyrics_processed, language="text")
         
-        st.caption("👇 Select word(s) below to discuss or correct:")
+        st.caption("👇 Select word(s) below to edit:")
         
         words = st.session_state.lyrics_processed.split()
-        
-        # Deduplicate words while preserving order for cleaner selection
         unique_words = list(dict.fromkeys(words))
         
-        # 3. Show pills for selection (Interactive View)
-        # Use st.pills for selection to avoid page reload issues
+        # 3. Selection Pills
         if hasattr(st, "pills"):
             selected_words_list = st.pills(
                 "Word Selection",
@@ -219,77 +195,99 @@ with col1:
                 label_visibility="collapsed"
             )
         else:
-            # Fallback for older Streamlit versions
             st.warning("Update Streamlit to use clickable pills. Using dropdown fallback.")
             selected_words_list = st.multiselect("Select words:", options=unique_words)
 
         if selected_words_list:
-            # Join selected words with space
-            selected_word = " ".join(selected_words_list)
+            selected_word_string = " ".join(selected_words_list)
             
     else:
         st.info("Generated lyrics will appear here.")
 
 with col2:
-    st.subheader("💬 Debate & Corrections")
+    st.subheader("⌨️ Virtual Editor")
     
-    # Chat Container
-    chat_container = st.container(height=400)
-    
-    with chat_container:
-        if not st.session_state.messages:
-            if selected_word:
-                st.markdown(f"**Selected:** `{selected_word}`\n\nAsk me about this!")
-            else:
-                st.markdown("Ask Gemini to critique the diacritics or suggest changes.")
+    if selected_word_string:
+        # Check if selection changed to update the buffer
+        if selected_word_string != st.session_state.last_selected:
+            st.session_state.editor_text = selected_word_string
+            st.session_state.last_selected = selected_word_string
+
+        # Editor Input Area
+        st.markdown("Edit the selected text below:")
+        
+        # Text Input for the word being edited
+        # We use on_change to capture manual typing
+        current_edit = st.text_input(
+            "Editor",
+            value=st.session_state.editor_text,
+            key="editor_input",
+            label_visibility="collapsed"
+        )
+        # Sync manual typing back to state
+        if current_edit != st.session_state.editor_text:
+             st.session_state.editor_text = current_edit
+
+        st.markdown("---")
+        st.caption("Add Diacritics:")
+
+        # Virtual Keyboard Grid
+        k_col1, k_col2, k_col3, k_col4 = st.columns(4)
+        
+        # Row 1: Short Vowels
+        with k_col1:
+            if st.button("َ  (َ)", help="Fatha", key="btn_fatha"):
+                append_to_editor("َ")
+                st.rerun()
+        with k_col2:
+            if st.button("ِ  (ِ)", help="Kasra", key="btn_kasra"):
+                append_to_editor("ِ")
+                st.rerun()
+        with k_col3:
+            if st.button("ُ  (ُ)", help="Damma", key="btn_damma"):
+                append_to_editor("ُ")
+                st.rerun()
+        with k_col4:
+            if st.button("ّ  (ّ)", help="Tashdid", key="btn_tashdid"):
+                append_to_editor("ّ")
+                st.rerun()
+
+        # Row 2: Others
+        k_col5, k_col6, k_col7, k_col8 = st.columns(4)
+        with k_col5:
+            if st.button("ْ  (ْ)", help="Sokoun", key="btn_sokoun"):
+                append_to_editor("ْ")
+                st.rerun()
+        with k_col6:
+            if st.button("ً  (ً)", help="Fathatan", key="btn_an"):
+                append_to_editor("ً")
+                st.rerun()
+        with k_col7:
+            if st.button("ٍ  (ٍ)", help="Kasratan", key="btn_en"):
+                append_to_editor("ٍ")
+                st.rerun()
+        with k_col8:
+            if st.button("ٌ  (ٌ)", help="Dammatan", key="btn_on"):
+                append_to_editor("ٌ")
+                st.rerun()
+                
+        st.markdown("---")
+        
+        # Save Button
+        if st.button("💾 Apply Changes / ذخیره", type="primary", use_container_width=True):
+            save_changes(selected_word_string, st.session_state.editor_text)
+            st.rerun()
             
-        for msg in st.session_state.messages:
-            if msg['role'] == 'user':
-                st.markdown(f"""
-                <div class='chat-message user-message'>
-                    <strong>You</strong>
-                    <div style='direction: rtl; text-align: right;'>{msg['content']}</div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown(f"""
-                <div class='chat-message ai-message'>
-                    <strong>Gemini</strong>
-                    <div style='direction: rtl; text-align: right;'>{msg['content']}</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-    # Chat Input Area
-    st.divider()
-    
-    # Contextual Input Construction
-    default_prompt = ""
-    
-    if selected_word:
-        st.caption(f"Talking about: **{selected_word}**")
-        col_act1, col_act2 = st.columns(2)
-        if col_act1.button("Why this form?", use_container_width=True):
-            default_prompt = f"Regarding the word(s) '{selected_word}': Why did you choose this specific form/diacritic? Is there an alternative?"
-        if col_act2.button("Fix & Regenerate", use_container_width=True):
-            default_prompt = f"The word '{selected_word}' is incorrect. Please fix the diacritics for this word and regenerate the full lyrics."
-
-    # The actual text input
-    user_input = st.chat_input("Type your message here...", key="chat_input")
-    
-    # Handle Button Clicks
-    if default_prompt and not user_input:
-        user_input = default_prompt
-
-    if user_input:
-        # Add User Message
-        st.session_state.messages.append({"role": "user", "content": user_input})
+    else:
+        st.info("👈 Select a word from the list to enable the virtual keyboard.")
         
-        # Add AI Response
-        with st.spinner("Thinking..."):
-            ai_reply = chat_with_gemini(user_input, st.session_state.lyrics_processed)
-            st.session_state.messages.append({"role": "assistant", "content": ai_reply})
-        
-        st.rerun()
+        # Static display of keyboard for reference/preview (disabled look)
+        st.caption("Virtual Keyboard Preview:")
+        p_col1, p_col2, p_col3, p_col4 = st.columns(4)
+        p_col1.button("َ", disabled=True, key="d1")
+        p_col2.button("ِ", disabled=True, key="d2")
+        p_col3.button("ُ", disabled=True, key="d3")
+        p_col4.button("ّ", disabled=True, key="d4")
 
 # --- Footer ---
 st.markdown("---")
