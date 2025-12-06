@@ -83,6 +83,7 @@ with st.sidebar:
     2. Click 'Generate Outputs'.
     3. **Left:** Get Persian text with Diacritics.
     4. **Right:** Get Finglish text for Suno AI.
+    5. **Bottom:** Use Voice Input to correct the text.
     """)
     
     model_choice = st.selectbox("Model", [
@@ -142,6 +143,33 @@ def generate_finglish(text):
         st.error(f"Error generating finglish: {e}")
         return ""
 
+def process_voice_correction(current_text, audio_bytes):
+    """Uses Gemini to correct text based on voice input."""
+    prompt = f"""
+    You are an expert Persian editor. 
+    The user (a native speaker) has provided an audio recording to correct the text below.
+    
+    Task:
+    1. Listen to the audio. The user might be reading the correct version or giving instructions.
+    2. Update the "Current Persian Text" based on the audio.
+    3. Output ONLY the corrected Persian text with proper diacritics.
+    
+    Current Persian Text:
+    {current_text}
+    """
+    try:
+        response = model.generate_content([
+            prompt,
+            {
+                "mime_type": "audio/wav",
+                "data": audio_bytes
+            }
+        ])
+        return response.text.strip()
+    except Exception as e:
+        st.error(f"Error processing voice correction: {e}")
+        return current_text
+
 # --- Main Layout ---
 st.subheader("📝 Persian Lyrics Input")
 raw_input = st.text_area("Paste your lyrics here:", value=st.session_state.lyrics_raw, height=120, label_visibility="collapsed")
@@ -184,6 +212,32 @@ with col2:
             st.code(st.session_state.lyrics_finglish, language="text")
     else:
         st.info("Finglish transliteration will appear here.")
+
+# --- Voice Correction Section ---
+st.markdown("---")
+st.subheader("🎙️ Native Speaker Correction")
+st.caption("Record your voice to correct the generated Persian lyrics. You can read the correct verse or explain the fix.")
+
+audio_value = st.audio_input("Record correction")
+
+if audio_value is not None:
+    if st.button("Apply Voice Correction", type="primary"):
+        if st.session_state.lyrics_processed:
+            with st.spinner("Listening to correction and updating text..."):
+                # Get bytes from the UploadedFile object
+                audio_bytes = audio_value.read()
+                
+                # 1. Update Persian Text
+                corrected_persian = process_voice_correction(st.session_state.lyrics_processed, audio_bytes)
+                st.session_state.lyrics_processed = corrected_persian
+                
+                # 2. Auto-update Finglish to match new Persian
+                st.session_state.lyrics_finglish = generate_finglish(corrected_persian)
+                
+                st.success("Correction applied! Finglish has been updated as well.")
+                st.rerun()
+        else:
+            st.warning("Generate text first before applying corrections.")
 
 # --- Footer ---
 st.markdown("---")
