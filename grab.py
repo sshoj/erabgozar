@@ -21,11 +21,11 @@ st.markdown("""
         font-size: 1.6em;
         line-height: 2.5em;
         white-space: pre-wrap; /* Preserve newlines */
-        background-color: #fefae0; /* Parchment color */
-        color: #2c3e50; /* Dark text for contrast */
+        background-color: #fefae0 !important; /* Force parchment color */
+        color: #000000 !important; /* Force black text for maximum contrast */
         padding: 25px;
         border-radius: 10px;
-        border: 2px solid #d4a373; /* Distinct border */
+        border: 2px solid #d4a373 !important; /* Distinct border */
         margin-bottom: 20px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
@@ -43,10 +43,12 @@ st.markdown("""
     .user-message {
         background-color: #f0f2f6;
         border-left: 5px solid #4a4e69;
+        color: #000000 !important;
     }
     .ai-message {
         background-color: #e8f4f8;
         border-left: 5px solid #00a8e8;
+        color: #000000 !important;
     }
     
     /* Styling for Pills (Clickable words) to be RTL */
@@ -204,25 +206,26 @@ with col1:
         
         words = st.session_state.lyrics_processed.split()
         
+        # Deduplicate words while preserving order for cleaner selection
+        unique_words = list(dict.fromkeys(words))
+        
         # 3. Show pills for selection (Interactive View)
         # Use st.pills for selection to avoid page reload issues
         if hasattr(st, "pills"):
-            selected_indices = st.pills(
+            selected_words_list = st.pills(
                 "Word Selection",
-                options=range(len(words)),
-                format_func=lambda i: words[i],
+                options=unique_words,
                 selection_mode="multi",
                 label_visibility="collapsed"
             )
         else:
             # Fallback for older Streamlit versions
             st.warning("Update Streamlit to use clickable pills. Using dropdown fallback.")
-            selected_idx_opts = st.multiselect("Select words:", options=[f"{i}: {w}" for i, w in enumerate(words)])
-            selected_indices = [int(opt.split(":")[0]) for opt in selected_idx_opts]
+            selected_words_list = st.multiselect("Select words:", options=unique_words)
 
-        if selected_indices:
+        if selected_words_list:
             # Join selected words with space
-            selected_word = " ".join([words[i] for i in selected_indices])
+            selected_word = " ".join(selected_words_list)
             
     else:
         st.info("Generated lyrics will appear here.")
