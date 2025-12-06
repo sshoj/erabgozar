@@ -109,8 +109,11 @@ def generate_diacritics(text):
     
     Strict Rules:
     1. Output ONLY the processed Persian text with diacritics.
-    2. Do not add translations, explanations, or introductory text.
-    3. Do NOT use the Sokoun diacritic ( ساکن / ْ ). Only use Fatha, Kasra, Damma, and Tashdid where necessary.
+    2. Use **Persian-style** diacritics (Harakat) suitable for modern poetry/lyrics.
+       - Avoid excessive Arabic-style markings (like unnecessary Tanween or decorative case endings) unless essential for the specific word.
+       - Focus on Fatha (َ), Kasra (ِ), and Damma (ُ) for pronunciation clarity.
+    3. Do not add translations, explanations, or introductory text.
+    4. Do NOT use the Sokoun diacritic ( ساکن / ْ ).
     
     Input Text:
     {text}
@@ -172,12 +175,15 @@ def process_voice_correction(current_text, audio_bytes):
     """Uses Gemini to correct text based on voice input."""
     prompt = f"""
     You are an expert Persian editor. 
-    The user (a native speaker) has provided an audio recording to correct the text below.
+    The user (a native speaker) has provided an audio recording to correct a SPECIFIC PART of the lyrics below.
     
     Task:
-    1. Listen to the audio. The user might be reading the correct version or giving instructions.
-    2. Update the "Current Persian Text" based on the audio.
-    3. Output ONLY the corrected Persian text with proper diacritics.
+    1. Listen to the audio. The user is reciting a correction for a specific phrase or line.
+    2. Locate that specific phrase in the "Current Persian Text".
+    3. Replace ONLY that specific segment with the corrected version from the audio. 
+    4. **DO NOT** regenerate or change the rest of the text. Keep surrounding text exactly as is.
+    5. Ensure the corrected part uses **Persian-style** diacritics (No Sokoun, minimal Arabic markings).
+    6. Output the FULL text with the specific correction applied.
     
     Current Persian Text:
     {current_text}
@@ -260,18 +266,18 @@ with col2:
 # --- Voice Correction Section ---
 st.markdown("---")
 st.subheader("🎙️ Native Speaker Correction")
-st.caption("Record your voice to correct the generated Persian lyrics. **Click once to start recording, and click again to stop (Do not hold).**")
+st.caption("Record your voice to correct a specific part of the lyrics. **Click once to start, and click again to stop.** The AI will only update the spoken part.")
 
 audio_value = st.audio_input("Record correction")
 
 if audio_value is not None:
     if st.button("Apply Voice Correction", type="primary"):
         if st.session_state.lyrics_processed:
-            with st.spinner("Listening to correction and updating text..."):
+            with st.spinner("Listening to correction and updating specific segment..."):
                 # Get bytes from the UploadedFile object
                 audio_bytes = audio_value.read()
                 
-                # 1. Update Persian Text
+                # 1. Update Persian Text (Partial Update Logic)
                 corrected_persian = process_voice_correction(st.session_state.lyrics_processed, audio_bytes)
                 st.session_state.lyrics_processed = corrected_persian
                 
