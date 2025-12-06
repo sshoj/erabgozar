@@ -1,5 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
+from openai import OpenAI
 import os
 import time
 
@@ -67,14 +68,39 @@ if "lyrics_finglish" not in st.session_state:
 with st.sidebar:
     st.header("⚙️ Configuration")
     
-    # Check secrets first, then env, then fallback to user input
+    # --- Google Gemini Setup ---
+    st.subheader("Google Gemini (Primary)")
     if "GOOGLE_API_KEY" in st.secrets:
         api_key = st.secrets["GOOGLE_API_KEY"]
-        st.success("API Key loaded from secrets! 🔒")
+        st.success("Gemini Key loaded! 🔒")
     else:
         api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:
             api_key = st.text_input("Gemini API Key", type="password", help="Get your key from aistudio.google.com")
+
+    model_choice = st.selectbox("Gemini Model", [
+        "gemini-2.5-flash-preview-09-2025", 
+        "gemini-1.5-pro", 
+        "gemini-2.0-flash-exp", 
+        "gemini-1.5-flash"
+    ])
+
+    st.divider()
+
+    # --- OpenAI Fallback Setup ---
+    st.subheader("OpenAI Fallback (Secondary)")
+    st.caption("Auto-switches if Gemini quota exceeded.")
+    
+    if "OPENAI_API_KEY" in st.secrets:
+        openai_api_key = st.secrets["OPENAI_API_KEY"]
+        st.success("OpenAI Key loaded! 🔒")
+    else:
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if not openai_api_key:
+            openai_api_key = st.text_input("OpenAI API Key", type="password", help="Required for fallback logic")
+    
+    # Updated to include GPT-5 Nano and Mini
+    openai_model = st.selectbox("Fallback Model", ["gpt-5-nano", "gpt-5-mini", "gpt-4o-mini"])
 
     st.divider()
     
@@ -86,15 +112,8 @@ with st.sidebar:
     4. **Right:** Get Finglish text for Suno AI.
     5. **Bottom:** Use Voice Input to correct the text.
     """)
-    
-    model_choice = st.selectbox("Model", [
-        "gemini-2.5-flash-preview-09-2025", 
-        "gemini-1.5-pro", 
-        "gemini-2.0-flash-exp", 
-        "gemini-1.5-flash"
-    ])
 
-# --- Gemini API Setup ---
+# --- API Initialization ---
 if api_key:
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel(model_choice)
@@ -102,44 +121,88 @@ else:
     st.warning("Please enter your Gemini API Key in the sidebar to proceed.")
     st.stop()
 
+openai_client = None
+if openai_api_key:
+    openai_client = OpenAI(api_key=openai_api_key)
+
 # --- Helper Functions ---
+
+class MockResponse:
+    """Mock object to mimic Gemini response structure when using OpenAI."""
+    def __init__(self, text):
+        self.text = text
+
+def generate_with_openai_fallback(contents):
+    """Fallback function to generate text using OpenAI (GPT-5 Nano/Mini)."""
+    if not openai_client:
+        return None
+        
+    try:
+        # Check if contents is complex (list with blobs) or simple string
+        if isinstance(contents, list):
+            # If it contains binary data (audio), we can't easily fallback to text-only models
+            # checking for dicts in list which represent media blobs
+            if any(isinstance(item, dict) for item in contents):
+                st.warning(f"⚠️ OpenAI ({openai_model}) fallback skipped: Audio input not supported via this path.")
+                return None
+            prompt_text = " ".join([c for c in contents if isinstance(c, str)])
+        else:
+            prompt_text = contents
+
+        response = openai_client.chat.completions.create(
+            model=openai_model,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant specialized in Persian poetry and lyrics. You must strictly follow formatting rules."},
+                {"role": "user", "content": prompt_text}
+            ],
+            temperature=0.7
+        )
+        return MockResponse(response.choices[0].message.content)
+    except Exception as e:
+        st.error(f"⚠️ OpenAI Fallback Failed: {e}")
+        return None
 
 def safe_generate_content(contents, **kwargs):
     """
-    Wrapper for model.generate_content with exponential backoff for quota errors.
-    Retries up to 5 times with delays of 1s, 2s, 4s, 8s, 16s.
+    Wrapper for model.generate_content with exponential backoff and OpenAI fallback.
     """
-    retries = 5
+    retries = 2
     delay = 1
     last_exception = None
 
+    # 1. Try Gemini with Retries
     for attempt in range(retries):
         try:
             return model.generate_content(contents, **kwargs)
         except Exception as e:
             last_exception = e
             error_str = str(e).lower()
-            # Check for rate limit (429) or quota related keywords
             if "429" in error_str or "quota" in error_str or "resource" in error_str:
                 time.sleep(delay)
                 delay *= 2
             else:
-                # For other errors, we might also want to retry briefly or fail fast.
-                # Per guidelines, we retry API calls.
-                time.sleep(delay)
-                delay *= 2
+                # Break loop for non-quota errors to fail fast or try fallback
+                break
     
-    # If all retries fail
-    if last_exception:
-        error_str = str(last_exception).lower()
-        if "quota" in error_str or "429" in error_str:
-            st.error("⚠️ **Quota Exceeded:** You have hit the rate limit for the Gemini API. Please wait a minute and try again.")
+    # 2. If Gemini failed, try OpenAI Fallback
+    error_str = str(last_exception).lower() if last_exception else ""
+    if "quota" in error_str or "429" in error_str:
+        if openai_client:
+            st.warning(f"⚠️ Gemini Quota Exceeded. Switching to {openai_model} for this request...")
+            fallback_response = generate_with_openai_fallback(contents)
+            if fallback_response:
+                return fallback_response
         else:
-            st.error(f"⚠️ **API Error:** {last_exception}")
+            st.error("⚠️ **Quota Exceeded:** Rate limit hit. Add OpenAI API Key for fallback.")
+            return None
+    
+    # 3. Final Error Reporting
+    if last_exception:
+        st.error(f"⚠️ **API Error:** {last_exception}")
     return None
 
 def generate_diacritics(text):
-    """Calls Gemini to add diacritics to Persian text."""
+    """Calls Gemini (or fallback) to add diacritics to Persian text."""
     prompt = f"""
     لطفا این شعر فارسی را برای پرامپ موزیک اعراب گذاری کن.
     
@@ -160,7 +223,7 @@ def generate_diacritics(text):
     return text
 
 def generate_finglish(text):
-    """Calls Gemini to create a Finglish version for Suno AI."""
+    """Calls Gemini (or fallback) to create a Finglish version for Suno AI."""
     prompt = f"""
     Convert the following Persian lyrics into "Finglish" (Pinglish) specifically optimized for AI Music Generators like Suno AI.
     
@@ -194,6 +257,7 @@ def extract_lyrics_from_audio(audio_bytes, mime_type):
     3. Break lines according to the musical phrasing.
     4. Ignore instrumental parts and background noise.
     """
+    # Note: Fallback won't work here easily as GPT-5 Nano doesn't support direct audio uploads via this simple chat method without Whisper
     response = safe_generate_content([
         prompt,
         {
@@ -222,6 +286,7 @@ def process_voice_correction(current_text, audio_bytes):
     Current Persian Text:
     {current_text}
     """
+    # Note: Fallback won't work here easily as GPT-5 Nano doesn't support direct audio uploads via this simple chat method without Whisper
     response = safe_generate_content([
         prompt,
         {
@@ -323,4 +388,4 @@ if audio_value is not None:
 
 # --- Footer ---
 st.markdown("---")
-st.caption("Powered by Google Gemini API | Designed for Persian Poetry Analysis")
+st.caption("Powered by Google Gemini API & OpenAI | Designed for Persian Poetry Analysis")
