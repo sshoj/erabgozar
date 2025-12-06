@@ -147,16 +147,20 @@ def generate_finglish(text):
         return ""
 
 def extract_lyrics_from_audio(audio_bytes, mime_type):
-    """Extracts Persian lyrics from an uploaded audio file."""
+    """Extracts Persian lyrics from an uploaded audio file using AI vocal focus."""
     prompt = """
     Listen to this audio file containing a Persian song.
+    
+    **AUDIO PROCESSING INSTRUCTION:** Focus strictly on the VOCAL track. Mentally separate the vocals from the background music, noise, and instrumentation. 
+    Transcribe only the clear lyrical content.
+    
     Task: Transcribe the lyrics exactly as sung in Persian.
     
     Rules:
     1. Output ONLY the Persian lyrics.
     2. Do not add translation or transliteration.
     3. Break lines according to the musical phrasing.
-    4. Ignore instrumental parts.
+    4. Ignore instrumental parts and background noise.
     """
     try:
         response = model.generate_content([
@@ -208,7 +212,7 @@ st.subheader("📝 Persian Lyrics Input")
 with st.expander("🎵 Extract Lyrics from Audio File"):
     uploaded_file = st.file_uploader("Upload a Persian song (MP3, WAV, M4A, OGG)", type=['mp3', 'wav', 'm4a', 'ogg'])
     if uploaded_file is not None:
-        if st.button("Extract Lyrics & Auto-Generate"):
+        if st.button("Extract Lyrics (AI Vocal Focus) & Auto-Generate"):
             with st.spinner("Listening, transcribing, and processing..."):
                 audio_bytes = uploaded_file.read()
                 extracted_text = extract_lyrics_from_audio(audio_bytes, uploaded_file.type)
