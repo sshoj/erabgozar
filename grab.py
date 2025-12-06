@@ -270,8 +270,8 @@ with col2:
         col_act1, col_act2 = st.columns(2)
         if col_act1.button("Why this form?", use_container_width=True):
             default_prompt = f"Regarding the word(s) '{selected_word}': Why did you choose this specific form/diacritic? Is there an alternative?"
-        if col_act2.button("Suggest Change", use_container_width=True):
-            default_prompt = f"Please suggest alternatives for '{selected_word}' that might fit better."
+        if col_act2.button("Fix & Regenerate", use_container_width=True):
+            default_prompt = f"The word '{selected_word}' is incorrect. Please fix the diacritics for this word and regenerate the full lyrics."
 
     # The actual text input
     user_input = st.chat_input("Type your message here...", key="chat_input")
