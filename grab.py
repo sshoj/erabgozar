@@ -98,9 +98,8 @@ with st.sidebar:
     4. **Select a word** from the chips below to discuss or correct it.
     """)
     
-    # Updated model list to include Gemini 3.0 Preview
+    # Removed 3.0 as it is causing issues, defaulting to 2.5
     model_choice = st.selectbox("Model", [
-        "gemini-3.0-flash-preview", 
         "gemini-2.5-flash-preview-09-2025", 
         "gemini-1.5-pro", 
         "gemini-2.0-flash-exp", 
@@ -128,6 +127,7 @@ def generate_diacritics(text):
     Strict Rules:
     1. Output ONLY the processed Persian text with diacritics.
     2. Do not add translations, explanations, or introductory text.
+    3. Do NOT use the Sokoun diacritic ( ساکن / ْ ). Only use Fatha, Kasra, Damma, and Tashdid where necessary.
     
     Input Text:
     {text}
@@ -195,11 +195,16 @@ with col1:
         <div class='rtl-text'>{st.session_state.lyrics_processed}</div>
         """, unsafe_allow_html=True)
         
+        # 2. Add Copy Button functionality using st.code
+        # This provides a native copy button for the user
+        with st.expander("📋 Copy Text / کپی متن"):
+            st.code(st.session_state.lyrics_processed, language="text")
+        
         st.caption("👇 Select a word below to discuss or correct it:")
         
         words = st.session_state.lyrics_processed.split()
         
-        # 2. Show pills for selection (Interactive View)
+        # 3. Show pills for selection (Interactive View)
         # Use st.pills for selection to avoid page reload issues
         if hasattr(st, "pills"):
             selected_idx = st.pills(
