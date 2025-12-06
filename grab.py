@@ -200,28 +200,29 @@ with col1:
         with st.expander("📋 Copy Text / کپی متن"):
             st.code(st.session_state.lyrics_processed, language="text")
         
-        st.caption("👇 Select a word below to discuss or correct it:")
+        st.caption("👇 Select word(s) below to discuss or correct:")
         
         words = st.session_state.lyrics_processed.split()
         
         # 3. Show pills for selection (Interactive View)
         # Use st.pills for selection to avoid page reload issues
         if hasattr(st, "pills"):
-            selected_idx = st.pills(
+            selected_indices = st.pills(
                 "Word Selection",
                 options=range(len(words)),
                 format_func=lambda i: words[i],
-                selection_mode="single",
+                selection_mode="multi",
                 label_visibility="collapsed"
             )
         else:
             # Fallback for older Streamlit versions
             st.warning("Update Streamlit to use clickable pills. Using dropdown fallback.")
-            selected_idx_opt = st.selectbox("Select word:", options=["None"] + [f"{i}: {w}" for i, w in enumerate(words)])
-            selected_idx = int(selected_idx_opt.split(":")[0]) if selected_idx_opt != "None" else None
+            selected_idx_opts = st.multiselect("Select words:", options=[f"{i}: {w}" for i, w in enumerate(words)])
+            selected_indices = [int(opt.split(":")[0]) for opt in selected_idx_opts]
 
-        if selected_idx is not None:
-            selected_word = words[selected_idx]
+        if selected_indices:
+            # Join selected words with space
+            selected_word = " ".join([words[i] for i in selected_indices])
             
     else:
         st.info("Generated lyrics will appear here.")
@@ -235,7 +236,7 @@ with col2:
     with chat_container:
         if not st.session_state.messages:
             if selected_word:
-                st.markdown(f"**Selected:** `{selected_word}`\n\nAsk me about this word!")
+                st.markdown(f"**Selected:** `{selected_word}`\n\nAsk me about this!")
             else:
                 st.markdown("Ask Gemini to critique the diacritics or suggest changes.")
             
@@ -265,7 +266,7 @@ with col2:
         st.caption(f"Talking about: **{selected_word}**")
         col_act1, col_act2 = st.columns(2)
         if col_act1.button("Why this form?", use_container_width=True):
-            default_prompt = f"Regarding the word '{selected_word}': Why did you choose this specific form/diacritic? Is there an alternative?"
+            default_prompt = f"Regarding the word(s) '{selected_word}': Why did you choose this specific form/diacritic? Is there an alternative?"
         if col_act2.button("Suggest Change", use_container_width=True):
             default_prompt = f"Please suggest alternatives for '{selected_word}' that might fit better."
 
