@@ -249,7 +249,9 @@ def generate_diacritics(text):
     Strict Rules:
     1. Output ONLY the processed Persian text with diacritics.
     2. **Persian-Specific Rules (CRITICAL):**
-       - **NEVER** use Fatha (َ) before Aleph (ا). For example: Write 'ما' NOT 'مَا'. Write 'خانه' NOT 'خَانَه'.
+       - **NEVER** use Fatha (َ) before Aleph (ا). This is absolutely forbidden.
+         - **CORRECT:** 'را', 'ما', 'با', 'خانه'
+         - **WRONG:** 'رَا', 'مَا', 'بَا', 'خَانَه'
        - **NEVER** use Sokoun (ْ) at all. It is not used in this style.
        - **ONLY** use Damma (ُ) before Vav (و) if the sound is specifically "oo" (like 'ooo'). Do not use it for 'ow'.
        - **NEVER** use Kasra (ِ) before Ye (ی) unless the sound is specifically "-ay".
@@ -323,7 +325,7 @@ def process_voice_correction(current_text, audio_bytes):
     3. Replace ONLY that specific segment with the corrected version from the audio. 
     4. **DO NOT** regenerate or change the rest of the text. Keep surrounding text exactly as is.
     5. **CRITICAL Diacritic Rules:**
-       - **NEVER** use Fatha (َ) before Aleph (ا). (e.g. Write 'ما' NOT 'مَا')
+       - **NEVER** use Fatha (َ) before Aleph (ا). (e.g. Write 'را' NOT 'رَا')
        - **NEVER** use Sokoun (ْ).
        - **ONLY** use Damma (ُ) before Vav (و) if the sound is "oo".
        - **NEVER** use Kasra (ِ) before Ye (ی) unless it sounds like "-ay".
