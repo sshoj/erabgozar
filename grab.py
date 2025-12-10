@@ -248,11 +248,14 @@ def generate_diacritics(text):
     
     Strict Rules:
     1. Output ONLY the processed Persian text with diacritics.
-    2. Use **Persian-style** diacritics (Harakat) suitable for modern poetry/lyrics.
-       - Avoid excessive Arabic-style markings (like unnecessary Tanween or decorative case endings) unless essential for the specific word.
+    2. **Persian-Specific Rules (CRITICAL):**
+       - **NEVER** use Fatha (َ) before Aleph (ا).
+       - **NEVER** use Sokoun (ْ) at all. It is not used in this style.
+       - **ONLY** use Damma (ُ) before Vav (و) if the sound is specifically "oo" (like 'ooo'). Do not use it for 'ow'.
+       - **NEVER** use Kasra (ِ) before Ye (ی) unless the sound is specifically "-ay".
+    3. Use standard **Persian-style** diacritics (Harakat) for modern poetry.
        - Focus on Fatha (َ), Kasra (ِ), and Damma (ُ) for pronunciation clarity.
-    3. Do not add translations, explanations, or introductory text.
-    4. Do NOT use the Sokoun diacritic ( ساکن / ْ ).
+    4. Do not add translations, explanations, or introductory text.
     
     Input Text:
     {text}
@@ -319,7 +322,11 @@ def process_voice_correction(current_text, audio_bytes):
     2. Locate that specific phrase in the "Current Persian Text".
     3. Replace ONLY that specific segment with the corrected version from the audio. 
     4. **DO NOT** regenerate or change the rest of the text. Keep surrounding text exactly as is.
-    5. Ensure the corrected part uses **Persian-style** diacritics (No Sokoun, minimal Arabic markings).
+    5. **CRITICAL Diacritic Rules:**
+       - **NEVER** use Fatha (َ) before Aleph (ا).
+       - **NEVER** use Sokoun (ْ).
+       - **ONLY** use Damma (ُ) before Vav (و) if the sound is "oo".
+       - **NEVER** use Kasra (ِ) before Ye (ی) unless it sounds like "-ay".
     6. Output the FULL text with the specific correction applied.
     
     Current Persian Text:
