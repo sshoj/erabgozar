@@ -250,16 +250,18 @@ def generate_diacritics(text):
     1. **PRE-PROCESSING:** If the input text already contains diacritics, **REMOVE** or **CORRECT** them completely if they violate the rules below. Do not treat existing marks as correct.
     2. Output ONLY the processed Persian text with diacritics.
     3. **Persian-Specific Rules (CRITICAL - YOU MUST FOLLOW THESE):**
-       - **RULE A: NO FATHA (َ) BEFORE ALEPH (ا)**.
-         - WRONG: 'رَا', 'مَا', 'بَا', 'خَانَه', 'دَانَا', 'وَان'
-         - CORRECT: 'را', 'ما', 'با', 'خانه', 'دانا', 'وان'
-       - **RULE B: NO KASRA (ِ) BEFORE YE (ی)** unless it creates the diphthong "-ay" (like 'pey').
-         - If the sound is "ee" (long i), do NOT use Kasra.
-         - WRONG: 'وِیرَانَه' (Incorrect Kasra on Vav), 'بِیا', 'چِی'
-         - CORRECT: 'ویرانه' (No Kasra on Vav), 'بیا', 'چی'
-       - **RULE C: NO SOKOUN (ْ)**. Remove all Sokoun symbols.
-       - **RULE D:** Use Damma (ُ) ONLY for short 'o' or before Vav (و) if it sounds like "oo".
-    4. **Final Check:** Ensure 'ویرانه' is written WITHOUT marks on the Vav or Ra-Aleph connection. Ensure 'وان' has NO Fatha on the Vav.
+       - **NEVER use Fatha (َ) before Aleph (ا).** This is the most important rule.
+         - **CORRECT:** 'را', 'ما', 'با', 'خانه', 'دانا', 'توانا'
+         - **WRONG:** 'رَا', 'مَا', 'بَا', 'خَانَه', 'دَانَا', 'تَوَانَا' -> **YOU MUST REMOVE THE FATHA**.
+       - **NEVER use Fatha (َ) before He (ه)** unless the sound is explicitly "ah" (like 'dah' or 'mah'). For the silent 'eh' ending (e.g., 'khaneh', 'nameh'), do NOT use Fatha.
+         - **CORRECT:** 'خانه', 'نامه', 'بنده'
+         - **WRONG:** 'خَانَه', 'نَامَه', 'بَندَه'
+       - **NEVER** use Sokoun (ْ) at all. It is not used in this style. **REMOVE** any existing Sokoun.
+       - **ONLY** use Damma (ُ) before Vav (و) if the sound is specifically "oo" (like 'ooo'). Do not use it for 'ow'.
+       - **NEVER** use Kasra (ِ) before Ye (ی) unless the sound is specifically "-ay".
+    4. Use standard **Persian-style** diacritics (Harakat) for modern poetry.
+       - Focus on Fatha (َ), Kasra (ِ), and Damma (ُ) for pronunciation clarity.
+    5. Do not add translations, explanations, or introductory text.
     
     Input Text:
     {text}
@@ -329,6 +331,7 @@ def process_voice_correction(current_text, audio_bytes):
     5. **CRITICAL Diacritic Rules:**
        - **STRIP** any bad existing marks in the target segment first.
        - **NEVER use Fatha (َ) before Aleph (ا).** (e.g. Write 'را' NOT 'رَا', Write 'ویرانه' NOT 'وِیرَانَه')
+       - **NEVER use Fatha (َ) before He (ه)** unless it sounds like "ah". For silent 'eh' (e.g. 'خانه'), do NOT use Fatha.
        - **NEVER use Kasra (ِ) before Ye (ی)** for 'ee' sounds. (e.g. Write 'ویرانه', not 'وِیرانه')
        - **NEVER** use Sokoun (ْ). Remove it if present.
     6. Output the FULL text with the specific correction applied.
